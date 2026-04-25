@@ -37,7 +37,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--bark);
 .teacher-btn:hover{color:#fff}
 
 /* ─── MODAL ─── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1200;display:flex;align-items:center;justify-content:center;padding:1rem}
 .modal-overlay.hidden{display:none}
 .modal{background:var(--warm);border-radius:var(--r);padding:1.5rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
 .modal-title{font-family:'Fraunces',serif;font-size:1.2rem;margin-bottom:1.2rem}
@@ -372,6 +372,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--bark);
 .project-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:.6rem}
 .proj-step{background:#fff;border:1px solid rgba(184,137,42,.2);border-radius:var(--r-sm);padding:.3rem .7rem;font-size:.72rem;color:var(--bark-mid)}
 
+.teacher-student-row{display:flex;align-items:center;gap:12px;padding:.8rem;background:var(--cream);border-radius:var(--r-sm);cursor:pointer;transition:background .15s;margin-bottom:.2rem}
+.teacher-student-row:hover{background:var(--terra-pale)}
 @media(max-width:900px){.week-grid{grid-template-columns:1fr 1fr}.week-stats{grid-template-columns:1fr 1fr}.dos-donts{grid-template-columns:1fr}.progress-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.hdr-title{font-size:1.2rem}.g-grid{grid-template-columns:1fr}.week-grid{grid-template-columns:1fr}.tutor-grid{grid-template-columns:1fr}.found-grid{grid-template-columns:1fr}.op-grid{grid-template-columns:1fr}}
 </style>
@@ -417,6 +419,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--bark);
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('add-student-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveNewStudent()">Create Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TEACHER MODAL ══════════ -->
+<div class="modal-overlay hidden" id="teacher-modal">
+  <div class="modal">
+    <div class="modal-title">👩‍🏫 Teacher / Parent View</div>
+    <div style="font-size:.78rem;color:var(--bark-lt);margin-bottom:1rem">Select a student to view their progress and plan, or manage student profiles below.</div>
+    <div id="teacher-student-list"></div>
+    <div class="btn-row" style="margin-top:1rem;justify-content:space-between">
+      <button class="btn btn-primary" onclick="closeModal('teacher-modal');showAddStudent()">＋ Add New Student</button>
+      <button class="btn btn-ghost" onclick="closeModal('teacher-modal')">Close</button>
     </div>
   </div>
 </div>
@@ -1286,9 +1301,49 @@ function showLogin(){
   document.getElementById('login-screen').classList.remove('hidden');
 }
 function teacherLogin(){
-  // teacher sees all students, but for now just pick first or prompt
-  if(students.length>0) loginAsStudent(students[0].id);
-  else showAddStudent();
+  if(students.length===0){showAddStudent();return;}
+  // Show teacher picker modal
+  document.getElementById('teacher-modal').classList.remove('hidden');
+  renderTeacherModal();
+}
+function renderTeacherModal(){
+  const list=document.getElementById('teacher-student-list');
+  list.innerHTML=students.map(s=>{
+    const prog=Object.keys(MASTERY).map(sid=>getSubjectProgress(s.id,sid));
+    const done=prog.reduce((a,b)=>a+b.done,0);
+    const total=prog.reduce((a,b)=>a+b.total,0);
+    const pct=total>0?Math.round(done/total*100):0;
+    return`<div class="teacher-student-row" onclick="loginAsStudent('${s.id}');closeModal('teacher-modal')">
+      <div style="font-size:1.6rem">${s.avatar}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:.9rem">${s.name}</div>
+        <div style="font-size:.72rem;color:var(--bark-lt)">Age ${s.age} · ${pct}% overall mastery · ${done}/${total} checkpoints</div>
+      </div>
+      <div style="font-size:.75rem;color:var(--terra)">View →</div>
+    </div>
+    <div style="display:flex;gap:6px;padding:.3rem 0 .6rem;border-bottom:1px solid var(--border);margin-bottom:.3rem">
+      <button class="btn btn-ghost" style="font-size:.68rem;padding:.3rem .7rem" onclick="event.stopPropagation();editStudent('${s.id}')">✏️ Edit</button>
+      <button class="btn btn-danger" style="font-size:.68rem;padding:.3rem .7rem;background:#ffebee;color:#b71c1c;border:none" onclick="event.stopPropagation();deleteStudent('${s.id}')">🗑 Delete</button>
+    </div>`;
+  }).join('');
+}
+function editStudent(id){
+  const s=students.find(st=>st.id===id);if(!s)return;
+  closeModal('teacher-modal');
+  document.getElementById('new-student-name').value=s.name;
+  document.getElementById('new-student-age').value=s.age;
+  document.querySelectorAll('.av-opt').forEach(a=>{a.classList.toggle('sel',a.dataset.av===s.avatar);});
+  document.getElementById('add-student-modal').dataset.editId=id;
+  document.querySelector('#add-student-modal .modal-title').textContent='Edit Student Profile';
+  document.getElementById('add-student-modal').classList.remove('hidden');
+}
+function deleteStudent(id){
+  if(!confirm('Delete this student? All their progress will be lost.'))return;
+  students=students.filter(s=>s.id!==id);
+  if(masteryData[id])delete masteryData[id];
+  saveState();
+  renderTeacherModal();
+  if(students.length===0)closeModal('teacher-modal');
 }
 function loginAsStudent(id){
   currentStudentId=id;
@@ -1306,9 +1361,13 @@ function loginAsStudent(id){
 }
 
 function showAddStudent(){
-  document.getElementById('add-student-modal').classList.remove('hidden');
+  const modal=document.getElementById('add-student-modal');
+  delete modal.dataset.editId;
+  document.querySelector('#add-student-modal .modal-title').textContent='Add Student Profile';
   document.getElementById('new-student-name').value='';
   document.getElementById('new-student-age').value='';
+  document.querySelectorAll('.av-opt').forEach((a,i)=>a.classList.toggle('sel',i===0));
+  modal.classList.remove('hidden');
 }
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
 function saveNewStudent(){
@@ -1316,9 +1375,19 @@ function saveNewStudent(){
   const age=parseInt(document.getElementById('new-student-age').value)||7;
   const av=document.querySelector('.av-opt.sel');
   const avatar=av?av.dataset.av:'🧒';
-  if(!name){alert('Please enter a name');return;}
-  const id='s_'+Date.now();
-  students.push({id,name,age,avatar,createdAt:Date.now()});
+  if(!name){alert('Please enter a student name');return;}
+  const editId=document.getElementById('add-student-modal').dataset.editId;
+  if(editId){
+    // Edit mode
+    const s=students.find(st=>st.id===editId);
+    if(s){s.name=name;s.age=age;s.avatar=avatar;}
+    delete document.getElementById('add-student-modal').dataset.editId;
+    document.querySelector('#add-student-modal .modal-title').textContent='Add Student Profile';
+  } else {
+    // Add mode
+    const id='s_'+Date.now();
+    students.push({id,name,age,avatar,createdAt:Date.now()});
+  }
   saveState();
   closeModal('add-student-modal');
   renderLoginScreen();
