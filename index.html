@@ -422,7 +422,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--bark);
 </div>
 
 <!-- ══════════ MAIN APP ══════════ -->
-<div id="main-app" class="hidden" style="display:none">
+<div id="main-app" style="display:none">
 
 <header class="hdr">
 <div class="hdr-top">
@@ -1876,10 +1876,29 @@ function toggleMasteryPlanner(k,el){
   const val=!getMasteryKey(currentStudentId,k);
   setMasteryKey(currentStudentId,k,val);
   const box=el.querySelector('.mc-box'),lbl=el.querySelector('.mc-lbl');
-  if(val){box.classList.add('on');box.textContent='✓';lbl.classList.add('on');}
-  else{box.classList.remove('on');box.textContent='';lbl.classList.remove('on');}
-  // refresh parent progress display
-  renderMasteryPlanner();
+  if(val){box.classList.add('on');box.textContent='✓';if(lbl)lbl.classList.add('on');}
+  else{box.classList.remove('on');box.textContent='';if(lbl)lbl.classList.remove('on');}
+  const blockHead=el.closest('.subject-planner-block')&&el.closest('.subject-planner-block').querySelector('.spb-progress');
+  if(blockHead){
+    const sid=k.split('_')[0];
+    const p=getSubjectProgress(currentStudentId,sid);
+    blockHead.textContent=p.done+'/'+p.total+' checkpoints · '+p.pct+'%';
+  }
+  const gradeSection=el.closest('.grade-section');
+  if(gradeSection){
+    const statusEl=gradeSection.querySelector('.gs-status');
+    if(statusEl){
+      const parts=k.split('_');
+      const sid=parts[0],g=parseInt(parts[1]);
+      const m=MASTERY[sid]&&MASTERY[sid][g];
+      if(m){
+        const done=m.filter(function(_,i){return getMasteryKey(currentStudentId,sid+'_'+g+'_'+i);}).length;
+        if(done===m.length){statusEl.textContent='✓ Mastered';statusEl.className='gs-status mastered';}
+        else if(done>0){statusEl.textContent=done+'/'+m.length+' in progress';statusEl.className='gs-status in-progress';}
+        else{statusEl.textContent='Not started';statusEl.className='gs-status unlocked';}
+      }
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
